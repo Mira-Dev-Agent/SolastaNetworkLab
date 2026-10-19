@@ -17,7 +17,7 @@ The host's committed action includes the acting character's stable ID, location/
 Before a peer executes the action:
 
 1. Resolve the same character in the same location and compare its logical grid tile with the committed expected origin. Do not compare animated transforms or an interpolated position.
-2. If the character is already on that tile and no in-flight movement will carry it away before the action begins, satisfy the position prerequisite.
+2. If the character is already on that tile and no in-flight movement will carry it away before the action begins, satisfy the position prerequisite. Complete a queued redundant move to this same tile as a no-op: resolve its callback/dependency and mark it completed, without animation, movement cost or movement-triggered effects, so it cannot run again later.
 3. Otherwise inspect the character's current execution chain and pending executable chains for a valid, uncompleted move to that exact tile in this location/session. If a matching move is already running, await it. If it is queued, run/reuse that move before the action, preserving the move's own prerequisites and completion callbacks. Remove/mark its original queue occurrence so it cannot execute twice.
 4. If no matching move exists, insert a move to the host's expected tile as a prerequisite of this action, using the game's normal movement/action machinery and Photon synchronization. Keep one repair dependency ID derived from the session, character and parent action sequence so repeated messages cannot create repeated repair moves.
 5. Wait for the selected or inserted move to finish and then recheck the actual logical tile. Scheduling a move or receiving its RPC is not completion: the inspected MoveCharacterAsync hands work to GameLocationActionManager and returns. Use the movement/chain completion boundary plus the tile check.
@@ -32,6 +32,21 @@ This is a position-repair prerequisite for an executable action, not general hos
 Photon's current room master is the authoritative host identity for the protocol. Check Photon-supplied `EventData.Sender` or `PhotonMessageInfo.Sender.ActorNumber`, not a host ID claimed inside a message payload. Pin that actor together with a fresh session epoch. Revalidate against the room master; if it changes during gameplay, pause rather than silently continuing the previous stream under a different host. Resume only after an explicit new epoch and agreed checkpoint.
 
 Receiving a command from the right host does not prove it was applied at the right time, and common command order does not guarantee deterministic game behavior. Track these properties separately.
+
+## Map-entry synchronization barrier
+
+Before gameplay begins on a newly loaded map instance, including the first visit to a new map, every participating peer must synchronize with the host. Loading the scene or receiving a ready RPC is insufficient by itself.
+
+1. The host starts a fresh map-load epoch bound to the current host/session, map/location identity and expected player roster. Reusing the same map name on a reload must not let old ready messages satisfy the new barrier. All synchronization messages are carried through normal Photon connections.
+2. Hold gameplay progression on every peer during entry. Prevent executable actions, AI turns, character movement and gameplay triggers from advancing beyond the initialization boundary. Allow required map initialization, network servicing, synchronization messages, rendering and cosmetic cursor updates. Holding movement during this entry barrier does not introduce host approval for ordinary movement after the map is released.
+3. Each peer finishes the map's required initialization: grid/pathfinding data, relevant entities and stable IDs, character placement, and pending initialization tasks needed by the checkpoint. The host establishes a stable starting baseline, including the logical tick/action watermark, deterministic random state and canonical gameplay state. Compare against the same host baseline, not unrelated moments in each peer's loading process.
+4. Each peer verifies its loaded map instance and starting state against that baseline. Include character logical tiles and relevant map/entity/trigger state; exclude animation, presentation and wall-clock values. A peer acknowledges synchronization only with its actual Photon sender identity, the current map-load epoch, baseline ID/hash and completed watermark.
+5. If a peer differs, keep the barrier closed and reconcile it from the host through an audited snapshot or save/load path, then compare again. Do not merely mark the peer ready, independently reroll initialization, or replay entry triggers/committed effects a second time. A checksum identifies disagreement; it does not itself repair state.
+6. The host waits for matching acknowledgments from every player in this barrier's roster, with no hard-coded player count. Only then broadcast a map-start commit through Photon to everyone, including the host. All peers verify its actual sender, epoch and baseline before releasing gameplay from the agreed starting point.
+
+Do not silently proceed on timeout, accept a majority of ready peers, or omit a disconnected participant from an existing barrier. Show the waiting/failing player and retry or require an explicit session/cohort recovery decision. A host/roster change invalidates the barrier and requires a fresh agreed epoch before release.
+
+Reject commands and readiness messages belonging to the previous map/load epoch. Commands held for the new map must remain ordered and execute at most once after the barrier; reissue their execution boundary if necessary rather than running expired ticks late. Later executable actions still perform the expected-origin-tile check described above.
 
 ## Proposed message flow
 

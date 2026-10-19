@@ -22,6 +22,8 @@ For enforcing host identity and execution order over Photon, see the [proposed p
 
 The proposal also requires the actor to be on the host's expected origin tile before an executable action. A mismatched peer first reuses a pending/running move to that tile, or inserts one if absent, waits for completion and rechecks the tile before the action can proceed. This position-repair rule is documented, not implemented in 0.5.0; safe handling of movement costs and triggered effects still needs auditing.
 
+A map-entry barrier is also proposed: on first loading a new map instance, hold gameplay until every player has finished initialization and matched the host's starting map/gameplay state. Photon continues processing while the host waits for matching acknowledgments from the whole roster, then releases everyone together. This barrier is not implemented in 0.5.0.
+
 ## Updates
 
 The mod checks the public repository's latest stable release once at startup in the background. It shows the loaded DLL version and available version, and prompts at the menu when an update is available. Downloading requires a user click. Only a newer stable release with the expected ZIP and SHA-256 digest is offered. Drafts and prereleases are excluded. Failed checks leave gameplay available, with a release-page link and a manual retry after a one-minute cooldown.
