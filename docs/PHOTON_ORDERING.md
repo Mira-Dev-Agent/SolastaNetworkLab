@@ -2,6 +2,14 @@
 
 Status: design recommendation. Version 0.5.0 restores native Photon gameplay and adds no enforcement protocol. This proposal needs a separately audited, opt-in implementation and live tests before use with a campaign.
 
+## Scope: executable actions only
+
+Apply host authority only to the executable gameplay actions represented in the action/combat log, such as audited attack, spell/power and reaction executions. Cursor/pointer updates and character movement remain on the game's existing Photon paths and do not require a proposal, host-issued action sequence or additional host approval. Other RPCs stay outside this protocol unless explicitly classified as an in-scope executable action. Diagnostic RPC log entries are not the definition of this scope.
+
+Classify by the underlying action type before execution, not by watching rendered log text after an action has already happened. The installed game has separate MoveCharacterRPC and generic ExecuteActionRPC/ExecuteActionChainRPC/ExecuteInstantSingleActionRPC entry points. Audit the action payload: a generic execution entry point can contain an excluded movement action or mixed chain, so RPC names alone are insufficient. Do not indiscriminately redirect every generic action chain or alter its internal dependencies. Independent AI/triggered executions in scope need the same ordering as player-requested actions; child effects belonging to an already committed action must not be executed a second time through a second commit.
+
+Movement remains synchronized through Photon; it is not treated as purely cosmetic. An authoritative action must refer to an agreed logical position/movement-completion boundary when position affects its preconditions. Defer that action until the referenced movement state is ready, rather than adding host authorization to every movement update. If movement triggers a separate executable reaction or other in-scope action, sequence that execution while leaving the movement message itself on the native path.
+
 ## Separate host identity, order and simulation agreement
 
 Photon's current room master is the authoritative host identity for the protocol. Check Photon-supplied `EventData.Sender` or `PhotonMessageInfo.Sender.ActorNumber`, not a host ID claimed inside a message payload. Pin that actor together with a fresh session epoch. Revalidate against the room master; if it changes during gameplay, pause rather than silently continuing the previous stream under a different host. Resume only after an explicit new epoch and agreed checkpoint.
@@ -10,7 +18,7 @@ Receiving a command from the right host does not prove it was applied at the rig
 
 ## Proposed message flow
 
-1. Each player sends an action proposal to the room master through Photon. Include a unique request ID; the host checks the actual sender and their character/control permissions. Do not simply reject all non-host RPCs in the existing game: Solasta legitimately sends player-originated commands, and doing so would break play.
+1. Each player sends an in-scope executable-action proposal to the room master through Photon. Cursor and character-movement messages bypass this queue and continue normally. Include a unique request ID; the host checks the actual sender and their character/control permissions. Do not simply reject all non-host RPCs in the existing game: Solasta legitimately sends player-originated commands, and doing so would break play.
 2. The host validates a proposal, assigns a monotonically increasing sequence and a host-selected logical execution tick/batch, and broadcasts a committed envelope through Photon. Include the session epoch, pinned host actor, sequence, originating player/request ID, command kind, recipients, payload and payload hash. Preserve the original player identity for callbacks/permissions; the commit's transport sender remains the host.
 3. All peers, including the host, wait for that committed envelope. The host must not execute through an immediate local shortcut. Use reliable Photon delivery with server-mediated ordering, such as AllViaServer or an equivalent RaiseEvent route to all, for the committed stream. Use one ordered control path for commits; do not rely on order across unrelated channels, properties or local callbacks.
 4. A receiver accepts commits only from the Photon-reported current/pinned host and current epoch. It queues by sequence, ignores an identical duplicate, and rejects a duplicate with different contents. A gap blocks execution and requests the missing range from a bounded host log; never skip a missing entry or execute a later command opportunistically.
@@ -20,7 +28,7 @@ Photon documents that ViaServer avoids the immediate local execution shortcut an
 
 ## Enforce execution, not just receipt
 
-Integrate at the actual delayed-command scheduler and game simulation boundaries. Each peer must apply a committed batch at the same logical tick and preserve its host-issued sequence within that batch. A command received after its execution boundary must trigger a pause/recovery path, not late execution against a different state.
+Integrate at the actual executable-action scheduler and relevant simulation boundaries, preserving the native cursor/movement handlers. Each peer must apply a committed action batch at the same logical tick and preserve its host-issued sequence within that batch. An action received after its execution boundary must trigger a pause/recovery path, not late execution against a different state.
 
 Use a readiness/commit barrier at audited gameplay-safe boundaries: peers acknowledge the staged batch and prerequisites, then the host authorizes that logical step. Acknowledgments should distinguish received, staged and completed execution watermarks. Maintain network processing while paused. Merely skipping NetworkingManager.FixedUpdate is not proof that all other gameplay coroutines stop.
 
@@ -28,7 +36,7 @@ Audit nested/local actions, AI, reactions, coroutine scheduling and state-changi
 
 ## Detect the first split and recover safely
 
-At agreed post-execution checkpoints, compare canonical gameplay hashes for the same epoch and completed sequence/tick. Include stable-ID-sorted entities, HP, logical positions, relevant conditions/inventory and deterministic random state; exclude presentation, animation and wall-clock fields. Hashes taken while an action is still running are not comparable checkpoints.
+At agreed post-execution checkpoints, compare canonical gameplay hashes for the same epoch and completed action sequence/tick. Include stable-ID-sorted entities, HP, logical positions, relevant conditions/inventory and deterministic random state; exclude presentation, animation and wall-clock fields. Compare position-dependent state at the same referenced movement boundary, not while native movement is at different intermediate stages. Hashes taken while an action is still running are not comparable checkpoints.
 
 - Different committed sequence/payload hashes suggest a delivery, targeting or protocol issue.
 - Matching received commits but different execution watermarks suggest scheduling/barrier issues.

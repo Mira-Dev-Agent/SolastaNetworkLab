@@ -18,7 +18,7 @@ Logs are `network-<UTC timestamp>.log` in the installed mod directory. They reco
 
 Diagnostic patches only observe calls: they do not reject, reroute, reorder, pause or replace gameplay commands. The mod does not override room capacity or timeouts. Logs omit raw RPC payloads, saves, chat and credentials. The entity-GUID check is a limited divergence indicator, not a full-state checksum.
 
-For enforcing host identity and execution order over Photon, see the [proposed protocol](https://github.com/Mira-Dev-Agent/SolastaNetworkLab/blob/main/docs/PHOTON_ORDERING.md). The game already uses AllViaServer for many commands; that guarantee alone does not establish identical simulation state.
+For enforcing host identity and execution order over Photon, see the [proposed protocol](https://github.com/Mira-Dev-Agent/SolastaNetworkLab/blob/main/docs/PHOTON_ORDERING.md). Its scope is executable action/combat-log actions; cursor updates and character movement retain their native Photon paths without additional host approval. The game already uses AllViaServer for many commands; that guarantee alone does not establish identical simulation state.
 
 ## Updates
 
