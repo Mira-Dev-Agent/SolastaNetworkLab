@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
-    <Version>0.4.0</Version>
+    <Version>0.5.0</Version>
     <LangVersion>latest</LangVersion>
     <GameDir Condition="'$(GameDir)' == ''">X:\SteamLibrary\steamapps\common\Slasta_COTM</GameDir>
     <Managed>$(GameDir)\Solasta_Data\Managed</Managed>
@@ -11,7 +11,6 @@
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.IO.Compression" />
-    <ProjectReference Include="../DirectTransport/DirectTransport.csproj" />
     <Reference Include="Assembly-CSharp"><HintPath>$(Managed)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine"><HintPath>$(Managed)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.CoreModule"><HintPath>$(Managed)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>

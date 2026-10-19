@@ -1,4 +1,4 @@
-param([string]$GameDir = 'X:\SteamLibrary\steamapps\common\Slasta_COTM', [switch]$Restore, [switch]$Test, [switch]$DiscoveryTests)
+param([string]$GameDir = 'X:\SteamLibrary\steamapps\common\Slasta_COTM', [switch]$Restore, [switch]$Test, [switch]$DiscoveryTests, [switch]$LegacyTransportTests)
 $ErrorActionPreference = 'Stop'
 Push-Location $PSScriptRoot
 $previous = @{}
@@ -11,6 +11,8 @@ try {
     $env:NUGET_PACKAGES = Join-Path $PSScriptRoot '.packages'
     $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
     if ($Restore) {
+        dotnet restore src/DirectTransport/DirectTransport.csproj --configfile NuGet.Config
+        if ($LASTEXITCODE) { throw 'Compatibility project restore failed' }
         dotnet restore src/SolastaNetworkLab/SolastaNetworkLab.csproj --configfile NuGet.Config "-p:GameDir=$GameDir"
         if ($LASTEXITCODE) { throw 'Mod restore failed' }
         dotnet restore tests/TransportChecks/TransportChecks.csproj --configfile NuGet.Config "-p:GameDir=$GameDir"
@@ -22,11 +24,15 @@ try {
     }
     dotnet build src/SolastaNetworkLab/SolastaNetworkLab.csproj -c Release --no-restore "-p:GameDir=$GameDir"
     if ($LASTEXITCODE) { throw 'Build failed' }
+    dotnet build src/DirectTransport/DirectTransport.csproj -c Release --no-restore
+    if ($LASTEXITCODE) { throw 'Compatibility assembly build failed' }
     if ($Test) {
-        dotnet run --project tests/TransportChecks/TransportChecks.csproj -c Release --no-restore "-p:GameDir=$GameDir"
-        if ($LASTEXITCODE) { throw 'Transport checks failed' }
         dotnet run --project tests/UpdateChecks/UpdateChecks.csproj -c Release --no-restore
         if ($LASTEXITCODE) { throw 'Update checks failed' }
+    }
+    if ($LegacyTransportTests) {
+        dotnet run --project tests/TransportChecks/TransportChecks.csproj -c Release --no-restore "-p:GameDir=$GameDir"
+        if ($LASTEXITCODE) { throw 'Legacy transport checks failed' }
     }
     if ($DiscoveryTests) {
         dotnet run --project tests/DiscoveryChecks/DiscoveryChecks.csproj -c Release --no-restore

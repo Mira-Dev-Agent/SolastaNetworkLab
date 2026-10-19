@@ -66,6 +66,14 @@ Discovery only advertises locally assigned IPv4 addresses, including LAN/VPN int
 
 32 additional automated discovery checks cover metadata validation, six-player automatic connections, expansion to seven players, master changes before activation, matching command order after discovery, wrong-host rejection and room-exit cleanup. The developer test executable is not included in the mod archive. Live Photon-room/UI operation and live gameplay remain unverified.
 
+## Version 0.5.0 restores Photon-only gameplay
+
+Removed all runtime direct transport, host advertisements, activation controls, RPC-send interception and direct-session freeze/rejection patches. The game mod no longer references the DirectTransport assembly. A compatibility DLL with that filename is still packaged for old updaters, but its socket/discovery source files are excluded from compilation. Historical source/tests remain inactive in the repository.
+
+Runtime Harmony patches only log RPC receipt, Photon disconnect/master-change callbacks and entity-GUID divergence. Diagnostics do not authorize, reject, reorder, reroute or execute gameplay commands. Local receive indices are explicitly not authoritative sequence numbers or proof of completed execution. Normal Photon host/join, capacity and command delivery are preserved.
+
+The recommended next design is documented in docs/PHOTON_ORDERING.md: Photon-authenticated host identity plus session epochs, player proposals and host-issued sequenced commits, execution-tick barriers, execution acknowledgments and canonical checkpoint hashes. It is not implemented by this release. Direct/discovery networking tests are opt-in historical tests and were not rerun after the user blocked DiscoveryChecks.exe.
+
 ## Remaining work
 
 1. Test the package on two actual game clients: Harmony loading, lobby activation, start/load, exploration, combat, reactions, inventory, travel and save/reload on disposable campaigns.

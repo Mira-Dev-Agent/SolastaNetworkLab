@@ -125,7 +125,7 @@ namespace Solasta.NetworkLab
         {
             var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = redirects, MaxAutomaticRedirections = 5,
                 AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate }) { Timeout = timeout };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("SolastaNetworkLab-UpdateChecker/0.4.0");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("SolastaNetworkLab-UpdateChecker/0.5.0");
             client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
             return client;
         }

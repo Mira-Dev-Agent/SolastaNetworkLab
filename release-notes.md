@@ -1,13 +1,12 @@
-Solasta Network Lab 0.4.0 discovers the room host and connects clients without manual IP, port or session-key entry.
+Solasta Network Lab 0.5.0 restores normal Photon networking for all multiplayer connections and gameplay.
 
-- Uses the current Photon room master as the sole direct host.
-- Advertises detected IPv4 LAN/VPN endpoints and a generated session token through room properties.
-- Connects clients in the background and requires acknowledgment from the expected host/session.
-- Rebuilds setup automatically when room membership or the master changes before activation.
-- Retains host activation once everyone is connected. MaxPlayers remains controlled by the game or Unfinished Business, with no fixed transport player-count cap.
+- Removes direct TCP setup, automatic address discovery and the activation flow.
+- Leaves MaxPlayers, host/join behavior, command delivery and timeouts to the game/Unfinished Business/Photon.
+- Retains passive RPC/tick/desync diagnostics and the in-game GitHub updater.
+- Documents a proposed host-authorized sequencer over Photon. Enforcement is not implemented or claimed by this release.
 
-Experimental: Photon is still required for lobby/control traffic; reconnect/resume is not implemented. The mod has not been validated in live Unity multiplayer. Use identical mod versions/settings and disposable test saves.
+Upgrade all participants and fully exit/relaunch Solasta. Create a new multiplayer room after upgrading from 0.4.0. No LAN/VPN or manual host details are required beyond normal Photon connectivity.
 
-All participants must use 0.4.0. Host discovery does not bypass NAT/firewalls: use a reachable LAN/VPN route. No router/firewall settings are changed. Install the attached ZIP with Unity Mod Manager or accept the update prompt in 0.3.0, then close and relaunch Solasta. DiscoveryChecks.exe is a developer test harness and is not shipped in the package.
+An inert DirectTransport.dll is kept only for compatibility with the older updater package contract; no direct-network code is compiled into it and the game mod does not reference it. No test executables are shipped. DiscoveryChecks.exe was not rerun.
 
-Validation includes the existing transport/updater suites and automatic-discovery socket tests for six/seven-player rosters, pre-activation host changes, stale/foreign advertisements and wrong-host rejection.
+Experimental diagnostics: live Unity/multiplayer validation and a demonstrated desync fix remain outstanding.
