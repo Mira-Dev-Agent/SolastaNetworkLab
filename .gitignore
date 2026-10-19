@@ -1,0 +1,12 @@
+.tools/
+.packages/
+.runtime/
+research/
+analysis/decompiled/
+analysis/photon/
+analysis/umm/
+analysis/types.txt
+**/bin/
+**/obj/
+artifacts/
+*.user

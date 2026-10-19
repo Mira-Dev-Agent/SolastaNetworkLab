@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><LangVersion>latest</LangVersion></PropertyGroup>
+  <ItemGroup><Compile Include="../../src/DirectTransport/Transport.cs" Link="Transport.cs" /></ItemGroup>
+  <PropertyGroup><GameDir Condition="'$(GameDir)' == ''">X:\SteamLibrary\steamapps\common\Slasta_COTM</GameDir></PropertyGroup>
+  <ItemGroup><Reference Include="Photon3Unity3D"><HintPath>$(GameDir)\Solasta_Data\Managed\Photon3Unity3D.dll</HintPath></Reference></ItemGroup>
+</Project>

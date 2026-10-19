@@ -1,0 +1,12 @@
+{
+  "Id": "SolastaNetworkLab",
+  "DisplayName": "Solasta Network Lab (experimental)",
+  "Version": "0.3.0",
+  "GameVersion": "1.5.97",
+  "ManagerVersion": "0.24.0",
+  "AssemblyName": "SolastaNetworkLab.dll",
+  "EntryMethod": "Solasta.NetworkLab.Main.Load",
+  "HomePage": "https://github.com/Mira-Dev-Agent/SolastaNetworkLab",
+  "Repository": "https://github.com/Mira-Dev-Agent/SolastaNetworkLab",
+  "VersionURL": "https://raw.githubusercontent.com/Mira-Dev-Agent/SolastaNetworkLab/main/src/SolastaNetworkLab/Info.json"
+}
