@@ -56,6 +56,16 @@ The updater reads the loaded assembly's version and compares it numerically with
 
 33 fixture checks cover version ordering, equal/newer installed versions, draft/prerelease rejection, release/asset origin and digest validation, package contents/identity, wait-for-exit installation, backup, checksum refusal and rollback after a locked-file failure. The transport suite remains separate. Unity UI integration and actual multiplayer gameplay remain unverified.
 
+## Version 0.4.0 automatic room-host discovery
+
+Removed manual address, port and session-key entry. Setup automatically derives the host from PhotonNetwork.MasterClient, publishes IPv4 interface candidates and a generated token in room custom properties, and connects clients in background tasks. Advertisements are bound to room name, master actor, game hash, mod version, roster fingerprint and a fresh session epoch. These properties are not added to the lobby listing. A new welcome acknowledgment confirms the expected master/session before accepting a socket, and the wire handshake version advances to 0.4.0.
+
+Before activation, roster or master changes rebuild the host listener and client connections automatically. After activation, the existing fixed-roster failure behavior remains; this is not gameplay host migration or reconnect. Every player still joins the Photon room, and the host still activates direct gameplay once all players connect. MaxPlayers is unchanged.
+
+Discovery only advertises locally assigned IPv4 addresses, including LAN/VPN interfaces and loopback for same-machine instances. It performs no external-IP lookup, UPnP, NAT traversal or firewall modification. A reachable LAN/VPN route is required. Room members see the addresses/token, so this is for trusted peers rather than strong identity authentication.
+
+32 additional automated discovery checks cover metadata validation, six-player automatic connections, expansion to seven players, master changes before activation, matching command order after discovery, wrong-host rejection and room-exit cleanup. The developer test executable is not included in the mod archive. Live Photon-room/UI operation and live gameplay remain unverified.
+
 ## Remaining work
 
 1. Test the package on two actual game clients: Harmony loading, lobby activation, start/load, exploration, combat, reactions, inventory, travel and save/reload on disposable campaigns.

@@ -31,7 +31,7 @@ namespace Solasta.DirectTransport
     public static class Wire
     {
         public const int MaxPayload = 1024 * 1024;
-        public const byte Hello = 1, Start = 2, Data = 3, Heartbeat = 4;
+        public const byte Hello = 1, Start = 2, Data = 3, Heartbeat = 4, Welcome = 5;
         public static byte[] Encode(Packet p)
         {
             if (p.Payload == null || p.Payload.Length > MaxPayload) throw new InvalidDataException("Payload limit");
@@ -152,6 +152,8 @@ namespace Solasta.DirectTransport
                         || hello.Payload.Length > 512 || Encoding.UTF8.GetString(hello.Payload) != key)
                         throw new InvalidDataException("Rejected handshake");
                     peers.Add(actor, link);
+                    link.Send(new Packet { Kind = Wire.Welcome, Sender = Host.Actor, Target = actor,
+                        Payload = hello.Payload });
                 }
                 while (true)
                 {
@@ -264,11 +266,17 @@ namespace Solasta.DirectTransport
         public int Actor { get; }
         private volatile bool active;
         private string failure;
+        private readonly string sessionKey;
+        private readonly int expectedHostActor;
+        private volatile bool acknowledged;
+        public bool Acknowledged => acknowledged;
         public bool Active => active;
         public string Failure => Volatile.Read(ref failure);
-        public Client(string host, int port, int actor, string sessionKey)
+        public Client(string host, int port, int actor, string sessionKey, int expectedHostActor = 0)
         {
             Actor = actor;
+            this.sessionKey = sessionKey;
+            this.expectedHostActor = expectedHostActor;
             var socket = new TcpClient();
             try
             {
@@ -301,8 +309,12 @@ namespace Solasta.DirectTransport
                 while (true)
                 {
                     var p = link.Read();
+                    if (p.Kind == Wire.Welcome && !acknowledged && !Active && p.Sequence == 0
+                        && p.Target == Actor && p.Sender > 0 && (expectedHostActor == 0 || p.Sender == expectedHostActor)
+                        && Encoding.UTF8.GetString(p.Payload) == sessionKey)
+                    { acknowledged = true; continue; }
                     if (p.Kind == Wire.Heartbeat && p.Payload.Length == 0) continue;
-                    if (p.Kind == Wire.Start && !Active && received == 0 && p.Sequence == 0) { active = true; continue; }
+                    if (p.Kind == Wire.Start && acknowledged && !Active && received == 0 && p.Sequence == 0) { active = true; continue; }
                     if (!Active || p.Kind != Wire.Data || p.Sequence != received + 1) throw new InvalidDataException("Sequence gap or protocol error");
                     received = p.Sequence;
                     if (Interlocked.Increment(ref queued) > 4096) throw new IOException("Inbound queue full");

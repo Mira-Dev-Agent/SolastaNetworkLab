@@ -1,12 +1,13 @@
-Solasta Network Lab 0.3.0 adds in-game version checking and one-click download/install-after-exit updates from this repository.
+Solasta Network Lab 0.4.0 discovers the room host and connects clients without manual IP, port or session-key entry.
 
-- Shows installed and latest published versions, with a menu prompt when a newer release is available.
-- Verifies release asset size, SHA-256, package contents and mod identity before staging.
-- Installs after Solasta closes, with backups and attempted rollback on failure (Windows).
-- Retains direct client-to-host gameplay routing with no fixed transport player-count cap. MaxPlayers remains controlled by the game or Unfinished Business.
+- Uses the current Photon room master as the sole direct host.
+- Advertises detected IPv4 LAN/VPN endpoints and a generated session token through room properties.
+- Connects clients in the background and requires acknowledgment from the expected host/session.
+- Rebuilds setup automatically when room membership or the master changes before activation.
+- Retains host activation once everyone is connected. MaxPlayers remains controlled by the game or Unfinished Business, with no fixed transport player-count cap.
 
 Experimental: Photon is still required for lobby/control traffic; reconnect/resume is not implemented. The mod has not been validated in live Unity multiplayer. Use identical mod versions/settings and disposable test saves.
 
-Initial installation: install the attached ZIP with Unity Mod Manager and restart the game. Versions before 0.3.0 must be updated manually once to gain the updater.
+All participants must use 0.4.0. Host discovery does not bypass NAT/firewalls: use a reachable LAN/VPN route. No router/firewall settings are changed. Install the attached ZIP with Unity Mod Manager or accept the update prompt in 0.3.0, then close and relaunch Solasta. DiscoveryChecks.exe is a developer test harness and is not shipped in the package.
 
-Validation: builds against Solasta 1.5.97; 176 transport checks and 33 updater checks, including wait-for-exit installation and rollback fixtures.
+Validation includes the existing transport/updater suites and automatic-discovery socket tests for six/seven-player rosters, pre-activation host changes, stale/foreign advertisements and wrong-host rejection.

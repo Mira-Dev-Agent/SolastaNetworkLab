@@ -1,4 +1,4 @@
-param([string]$GameDir = 'X:\SteamLibrary\steamapps\common\Slasta_COTM', [switch]$Restore, [switch]$Test)
+param([string]$GameDir = 'X:\SteamLibrary\steamapps\common\Slasta_COTM', [switch]$Restore, [switch]$Test, [switch]$DiscoveryTests)
 $ErrorActionPreference = 'Stop'
 Push-Location $PSScriptRoot
 $previous = @{}
@@ -17,6 +17,8 @@ try {
         if ($LASTEXITCODE) { throw 'Test restore failed' }
         dotnet restore tests/UpdateChecks/UpdateChecks.csproj --configfile NuGet.Config
         if ($LASTEXITCODE) { throw 'Update test restore failed' }
+        dotnet restore tests/DiscoveryChecks/DiscoveryChecks.csproj --configfile NuGet.Config
+        if ($LASTEXITCODE) { throw 'Discovery test restore failed' }
     }
     dotnet build src/SolastaNetworkLab/SolastaNetworkLab.csproj -c Release --no-restore "-p:GameDir=$GameDir"
     if ($LASTEXITCODE) { throw 'Build failed' }
@@ -25,6 +27,10 @@ try {
         if ($LASTEXITCODE) { throw 'Transport checks failed' }
         dotnet run --project tests/UpdateChecks/UpdateChecks.csproj -c Release --no-restore
         if ($LASTEXITCODE) { throw 'Update checks failed' }
+    }
+    if ($DiscoveryTests) {
+        dotnet run --project tests/DiscoveryChecks/DiscoveryChecks.csproj -c Release --no-restore
+        if ($LASTEXITCODE) { throw 'Discovery checks failed' }
     }
     $version = (Get-Content 'src/SolastaNetworkLab/Info.json' -Raw | ConvertFrom-Json).Version
     $out = Join-Path $PSScriptRoot "artifacts\v$version\SolastaNetworkLab"

@@ -24,7 +24,10 @@ namespace Solasta.NetworkLab
         private static UpdatePanel updates;
         private static IGameplayPeer client;
         private static HostServer relay;
-        private static string address = "0.0.0.0", port = "27090", key = "", status = "Diagnostics only";
+        private static AutoRoomTransport automatic;
+        private static string status = "Join a multiplayer room to discover its host.";
+        private static bool automaticEnabled = true;
+        private static int hostActor;
         private static int[] roster;
         private static bool armed, faulted, dispatchingDirect;
         private static StreamWriter log;
@@ -53,7 +56,7 @@ namespace Solasta.NetworkLab
             {
                 // Unloading would mix transport streams during an active session.
                 if (armed) return false;
-                updates?.Dispose(); client?.Dispose(); relay?.Dispose(); harmony.UnpatchAll(harmony.Id); log.Dispose(); return true;
+                updates?.Dispose(); automatic?.Dispose(); client?.Dispose(); relay?.Dispose(); harmony.UnpatchAll(harmony.Id); log.Dispose(); return true;
             };
             return true;
         }
@@ -72,70 +75,76 @@ namespace Solasta.NetworkLab
             updates?.Draw();
             GUILayout.Label("Experimental gameplay RPC transport. Photon still provides lobby, identity and file setup.");
             GUILayout.Label("Use a disposable save, identical game/mod settings, and trusted LAN/VPN peers. No encryption or NAT relay.");
-            GUILayout.Label("Connect every player while in the room lobby, then host activates before starting/loading gameplay.");
+            GUILayout.Label("The room host is detected automatically. Clients connect without entering an IP, port or key.");
+            GUILayout.Label("Join the same room on a shared LAN/VPN, then the room host activates before starting/loading gameplay.");
             GUILayout.Label("MaxPlayers is controlled by the game or Unfinished Business. The transport adds no fixed player-count cap.");
             GUILayout.Label(status);
             if (armed) { GUILayout.Label("Active session: restart game to return to Photon gameplay."); return; }
-            if (client != null)
+            bool enabled = GUILayout.Toggle(automaticEnabled, "Automatically connect to this room's host");
+            if (enabled != automaticEnabled)
             {
-                GUILayout.Label("Connected; waiting for host activation. Players=" + (relay == null ? "remote host" : relay.ConnectedCount + "/" + relay.ExpectedCount));
-                if (relay != null && GUILayout.Button("Activate when all lobby players are connected"))
-                { try { CheckRoster(); relay.Activate(); } catch (Exception e) { status = e.Message; } }
-                if (GUILayout.Button("Cancel before activation")) { client.Dispose(); relay?.Dispose(); client = null; relay = null; faulted = false; status = "Diagnostics only"; }
+                automaticEnabled = enabled;
+                if (!enabled && relay != null) PublishAdvertisement(null);
+                automatic?.Dispose(); automatic = null; client = null; relay = null;
+            }
+            if (relay != null && relay.ExpectedCount > 1 && relay.ConnectedCount == relay.ExpectedCount
+                && GUILayout.Button("Activate when all room players are connected"))
+            {
+                try { CheckRoster(); automatic.Activate(CurrentRoom()); Arm(); }
+                catch (Exception e) { status = e.Message; }
+            }
+        }
+        private static RoomSnapshot CurrentRoom()
+        {
+            if (!PhotonNetwork.InRoom || PhotonNetwork.OfflineMode || PhotonNetwork.MasterClient == null) return null;
+            return new RoomSnapshot { LocalActor = PhotonNetwork.LocalPlayer.ActorNumber, MasterActor = PhotonNetwork.MasterClient.ActorNumber,
+                Room = PhotonNetwork.CurrentRoom.Name, GameHash = binaryHash, ModVersion = typeof(Main).Assembly.GetName().Version.ToString(3),
+                Actors = PhotonNetwork.PlayerList.Select(p => p.ActorNumber).OrderBy(id => id).ToArray() };
+        }
+        private static bool PublishAdvertisement(byte[] bytes)
+        {
+            if (!PhotonNetwork.InRoom || !PhotonNetwork.IsMasterClient || PhotonNetwork.OfflineMode) return false;
+            return PhotonNetwork.CurrentRoom.SetCustomProperties(new ExitGames.Client.Photon.Hashtable { [HostAdvertisement.PropertyName] = bytes });
+        }
+        private static void UpdateAutomaticSetup()
+        {
+            var room = CurrentRoom();
+            if (!automaticEnabled || room == null || binaryHash != SupportedHash || ServiceRepository.GetService<IGameService>()?.Game != null)
+            {
+                automatic?.Dispose(); automatic = null; client = null; relay = null;
+                status = !automaticEnabled ? "Diagnostics only; automatic direct transport disabled."
+                    : binaryHash != SupportedHash ? "Direct mode is unavailable for this unaudited game assembly."
+                    : room == null ? "Join a multiplayer room to discover its host." : "Automatic setup is available in the room lobby before gameplay.";
                 return;
             }
-            GUILayout.Label("Host IP when joining; local bind IP when hosting (0.0.0.0 listens on all interfaces)"); address = GUILayout.TextField(address);
-            GUILayout.Label("TCP port"); port = GUILayout.TextField(port);
-            GUILayout.Label("Shared session key (16+ characters; distribute privately)"); key = GUILayout.TextField(key);
-            if (GUILayout.Button("Generate session key")) key = Guid.NewGuid().ToString("N");
-            if (GUILayout.Button("Host direct transport")) Connect(true);
-            if (GUILayout.Button("Join direct transport")) Connect(false);
+            if (automatic == null) automatic = new AutoRoomTransport(PublishAdvertisement);
+            object raw;
+            PhotonNetwork.CurrentRoom.CustomProperties.TryGetValue(HostAdvertisement.PropertyName, out raw);
+            automatic.Tick(room, raw as byte[]);
+            client = automatic.Peer; relay = automatic.Server; roster = room.Actors; hostActor = room.MasterActor;
+            status = automatic.Status;
         }
-        private static void Connect(bool host)
+        private static void Arm()
         {
-            try
-            {
-                if (!PhotonNetwork.InRoom || PhotonNetwork.OfflineMode || PhotonNetwork.CurrentRoom.PlayerCount < 2)
-                    throw new InvalidOperationException("Join a Photon multiplayer room with all players first");
-                if (ServiceRepository.GetService<IGameService>()?.Game != null)
-                    throw new InvalidOperationException("Connect only in the lobby before gameplay exists");
-                if (key.Length < 16 || key.Length > 128) throw new ArgumentException("Key must be 16 to 128 characters");
-                if (binaryHash != SupportedHash) throw new InvalidOperationException("This game assembly has not been audited for direct mode");
-                int n = int.Parse(port);
-                roster = PhotonNetwork.PlayerList.Select(p => p.ActorNumber).OrderBy(id => id).ToArray();
-                string rosterHash = Hash(Encoding.UTF8.GetBytes(string.Join(",", roster)));
-                string session = "direct-v0.2.0:" + key + ":" + PhotonNetwork.CurrentRoom.Name + ":" + binaryHash + ":" + rosterHash;
-                if (Encoding.UTF8.GetByteCount(session) > 512) throw new ArgumentException("Session handshake too long");
-                if (host)
-                {
-                    if (!PhotonNetwork.IsMasterClient) throw new InvalidOperationException("Only the Photon master may host");
-                    relay = new HostServer(IPAddress.Parse(address), n, PhotonNetwork.LocalPlayer.ActorNumber,
-                        roster, session);
-                    client = relay.Host;
-                }
-                else
-                {
-                    if (address == "0.0.0.0") throw new ArgumentException("Enter the host's reachable LAN/VPN address to join");
-                    client = new Client(address, n, PhotonNetwork.LocalPlayer.ActorNumber, session);
-                }
-                status = "Waiting for host activation";
-            }
-            catch (Exception e) { client?.Dispose(); relay?.Dispose(); client = null; relay = null; status = e.Message; }
+            armed = true; status = "Direct TCP gameplay transport active; room host #" + hostActor; Write("transport_activated host_actor=" + hostActor);
         }
         private static void CheckRoster()
         {
-            if (!PhotonNetwork.InRoom || !PhotonNetwork.PlayerList.Select(p => p.ActorNumber).OrderBy(id => id).SequenceEqual(roster))
-                throw new InvalidOperationException("Lobby membership changed; cancel setup and reconnect all players");
+            if (!PhotonNetwork.InRoom || PhotonNetwork.MasterClient?.ActorNumber != hostActor
+                || !PhotonNetwork.PlayerList.Select(p => p.ActorNumber).OrderBy(id => id).SequenceEqual(roster))
+                throw new InvalidOperationException("Room host or membership changed");
         }
         private static void OnUpdate(UnityModManager.ModEntry entry, float dt)
         {
             updates?.Tick(!armed && (!PhotonNetwork.InRoom || PhotonNetwork.OfflineMode) && Gui.GuiService != null
                 && ServiceRepository.GetService<IGameService>()?.Game == null);
             if (client != null && client.Active && !armed)
-            { armed = true; status = "Direct TCP gameplay transport active"; Write("transport_activated"); }
-            if (client != null && !faulted)
+                Arm();
+            if (!armed) UpdateAutomaticSetup();
+            if (client != null && client.Active && !armed) Arm();
+            if (armed && !faulted)
             { try { CheckRoster(); } catch (Exception e) { Fault(e); } }
-            if (client != null && client.Failure != null) Fault(new IOException(client.Failure));
+            if (armed && client != null && client.Failure != null) Fault(new IOException(client.Failure));
             if (armed && !faulted && (!PhotonNetwork.InRoom || PhotonNetwork.OfflineMode)) Fault(new IOException("Photon control connection lost"));
             try
             {
@@ -182,7 +191,7 @@ namespace Solasta.NetworkLab
             private static bool Prefix(PhotonView __instance, string methodName, RpcTarget target, object[] parameters)
             {
                 if (__instance.GetComponent<NetworkingManager>() == null) return true;
-                if (!armed && client != null && client.Active) { armed = true; Write("transport_activated"); }
+                if (!armed && client != null && client.Active) Arm();
                 if (!armed) return true;
                 if (faulted) return false;
                 try
